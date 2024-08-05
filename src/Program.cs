@@ -47,11 +47,11 @@ else if (command == "hash-object" && commandArg == "-w")
 
     var blobObject = $"blob {fileContent.Length}\0{fileContent}";
     var blobObjectBytes = Encoding.UTF8.GetBytes(blobObject);
-    
+
     using var memoryStream = new MemoryStream();
     using (var zlibStream = new ZLibStream(memoryStream, CompressionMode.Compress))
         zlibStream.Write(blobObjectBytes, 0, blobObjectBytes.Length);
-    
+
     var hash = SHA1.HashData(blobObjectBytes);
     var sb = new StringBuilder(hash.Length * 2);
 
@@ -72,15 +72,4 @@ else if (command == "hash-object" && commandArg == "-w")
 else
 {
     throw new ArgumentException($"Unknown command {command}");
-}
-
-static byte[] CompressString(string text)
-{
-    byte[] inputBytes = Encoding.UTF8.GetBytes(text);
-
-    using var outputStream = new MemoryStream();
-    using (var zlibStream = new ZLibStream(outputStream, CompressionMode.Compress))
-        zlibStream.Write(inputBytes, 0, inputBytes.Length);
-
-    return outputStream.ToArray();
 }
