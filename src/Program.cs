@@ -24,7 +24,7 @@ else if (command == "cat-file")
     if (commandArg == "-p")
     {
         var hash = args[2];
-        var objectPath = Path.Combine(".git/objects", hash);
+        var objectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
 
         if (!File.Exists(objectPath))
         {
