@@ -1,11 +1,10 @@
+using System.IO.Compression;
+
 if (args.Length < 1)
 {
     Console.WriteLine("Please provide a command.");
     return;
 }
-
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-Console.WriteLine("Logs from your program will appear here!");
 
 string command = args[0];
 
@@ -17,6 +16,30 @@ if (command == "init")
     Directory.CreateDirectory(".git/refs");
     File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
     Console.WriteLine("Initialized git directory");
+}
+else if (command == "cat-file")
+{
+    var commandArg = args[1];
+
+    if (commandArg == "-p")
+    {
+        var hash = args[2];
+        var objectPath = Path.Combine(".git/objects", hash);
+
+        if (!File.Exists(objectPath))
+        {
+            Console.WriteLine($"Object {hash} not found.");
+            return;
+        }
+
+        var compressed = File.ReadAllBytes(objectPath);
+
+        using var memoryStream = new MemoryStream(compressed);
+        using var zLibStream = new ZLibStream(memoryStream, CompressionMode.Decompress);
+        using var reader = new StreamReader(zLibStream);
+        
+        Console.Write(reader.ReadToEnd());
+    }
 }
 else
 {
