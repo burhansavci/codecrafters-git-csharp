@@ -46,13 +46,14 @@ else if (command == "hash-object" && commandArg == "-w")
     var fileContent = File.ReadAllText(args[2]);
 
     var blobObject = $"blob {fileContent.Length}\0{fileContent}";
+    var blobObjectBytes = Encoding.UTF8.GetBytes(blobObject);
 
     using var memoryStream = new MemoryStream();
     using var zLibStream = new ZLibStream(memoryStream, CompressionMode.Compress);
     using var writer = new StreamWriter(zLibStream);
-
-    writer.Write(blobObject);
-    var hash = SHA1.HashData(Encoding.UTF8.GetBytes(blobObject));
+    writer.Write(blobObjectBytes);
+    
+    var hash = SHA1.HashData(blobObjectBytes);
     var sb = new StringBuilder(hash.Length * 2);
 
     foreach (byte b in hash)
@@ -61,12 +62,12 @@ else if (command == "hash-object" && commandArg == "-w")
     }
 
     var content = sb.ToString();
-    
+
     var objectPath = $".git/objects/{content[..2]}/{content[2..]}";
-    
+
     Directory.CreateDirectory(Path.GetDirectoryName(objectPath)!);
     File.WriteAllBytes(objectPath, memoryStream.ToArray());
-    
+
     Console.Write(content);
 }
 else
