@@ -66,6 +66,8 @@ else if (command == "hash-object" && commandArg == "-w")
     
     Directory.CreateDirectory(Path.GetDirectoryName(objectPath)!);
     File.WriteAllBytes(objectPath, memoryStream.ToArray());
+    
+    Console.Write(content);
 }
 else
 {
