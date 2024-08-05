@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 if (args.Length < 1)
 {
     Console.WriteLine("Please provide a command.");
@@ -15,12 +12,11 @@ string command = args[0];
 if (command == "init")
 {
     // Uncomment this block to pass the first stage
-    //
-    // Directory.CreateDirectory(".git");
-    // Directory.CreateDirectory(".git/objects");
-    // Directory.CreateDirectory(".git/refs");
-    // File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
-    // Console.WriteLine("Initialized git directory");
+    Directory.CreateDirectory(".git");
+    Directory.CreateDirectory(".git/objects");
+    Directory.CreateDirectory(".git/refs");
+    File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
+    Console.WriteLine("Initialized git directory");
 }
 else
 {
