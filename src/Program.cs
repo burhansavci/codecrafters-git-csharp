@@ -37,8 +37,11 @@ else if (command == "cat-file")
         using var memoryStream = new MemoryStream(compressed);
         using var zLibStream = new ZLibStream(memoryStream, CompressionMode.Decompress);
         using var reader = new StreamReader(zLibStream);
-        
-        Console.Write(reader.ReadToEnd());
+
+        var blobObject = reader.ReadToEnd();
+        var content = blobObject.Split("\0")[1];
+
+        Console.Write(content);
     }
 }
 else
