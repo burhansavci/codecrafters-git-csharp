@@ -87,12 +87,12 @@ else if (command == "ls-tree" && commandArg == "--name-only")
     using var reader = new StreamReader(zLibStream);
 
     var treeObject = reader.ReadToEnd();
-
-    var lines = treeObject.Split("\0");
+    
+    var lines = treeObject.Split(" ");
     var names = new List<string>();
-    for (var index = 1; index < lines.Length; index += 2)
+    for (var i = 2; i < lines.Length; i++)
     {
-        var name = lines[index].Split()[1];
+        var name = lines[i].Split("\0")[0];
         names.Add(name);
     }
     
