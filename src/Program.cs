@@ -69,6 +69,38 @@ else if (command == "hash-object" && commandArg == "-w")
 
     Console.Write(content);
 }
+else if (command == "ls-tree" && commandArg == "--name-only")
+{
+    var hash = args[2];
+    var treePath = $".git/objects/{hash[..2]}/{hash[2..]}";
+
+    if (!File.Exists(treePath))
+    {
+        Console.WriteLine($"Tree {hash} not found.");
+        return;
+    }
+
+    var compressed = File.ReadAllBytes(treePath);
+
+    using var memoryStream = new MemoryStream(compressed);
+    using var zLibStream = new ZLibStream(memoryStream, CompressionMode.Decompress);
+    using var reader = new StreamReader(zLibStream);
+
+    var treeObject = reader.ReadToEnd();
+
+    var lines = treeObject.Split("\0");
+    var names = new List<string>();
+    for (var index = 1; index < lines.Length; index += 2)
+    {
+        var name = lines[index].Split()[1];
+        names.Add(name);
+    }
+    
+    foreach (var name in names.OrderBy(x => x))
+    {
+        Console.WriteLine(name);
+    }
+}
 else
 {
     throw new ArgumentException($"Unknown command {command}");
