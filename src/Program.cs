@@ -79,11 +79,7 @@ else if (command == "write-tree")
     var treeObjectBody = IterateDirectory(currentDirectory, treeObjectBuilder);
 
     var treeObject = $"tree {treeObjectBody.Length}\0{treeObjectBody}";
-
-    /*
-     *   tree <size>\0<mode> <name>\0<20_byte_sha><mode> <name>\0<20_byte_sha>
-     */
-    Console.WriteLine($"treeObject: {treeObject}");
+    
     var treeObjectBytes = Encoding.UTF8.GetBytes(treeObject);
 
     var hash = HashFromByteArray(treeObjectBytes);
