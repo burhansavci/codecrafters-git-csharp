@@ -83,6 +83,11 @@ else if (command == "write-tree")
     var treeObjectBytes = Encoding.UTF8.GetBytes(treeObject);
 
     var hash = HashFromByteArray(treeObjectBytes);
+    
+    var treeObjectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
+
+    Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
+    File.WriteAllBytes(treeObjectPath, Compress(treeObjectBytes));
 
     Console.WriteLine(hash);
 }
