@@ -100,7 +100,6 @@ string IterateDirectory(string directory, StringBuilder treeObjectBody)
     var directories = Directory.GetDirectories(directory).Where(x => !x.EndsWith(".git"));
     foreach (var dir in directories)
     {
-        Console.WriteLine($"dir: {dir}");
         var treeObjectRow = $"040000 {Path.GetFileName(dir)}\0{HashFromString(IterateDirectory(dir, treeObjectBody))}";
         treeObjectBody.Append(treeObjectRow);
     }
@@ -115,7 +114,6 @@ string WriteAllFiles(string directory)
     var treeBlobObjectBody = new StringBuilder();
     foreach (var file in files)
     {
-        Console.WriteLine($"file: {file}");
         var fileContent = File.ReadAllText(file);
         var hash = WriteBlobObject(fileContent);
         var treeObjectRow = $"100644 {Path.GetFileName(file)}\0{hash}";
