@@ -39,9 +39,7 @@ else if (command == "cat-file" && commandArg == "-p")
 }
 else if (command == "hash-object" && commandArg == "-w")
 {
-    var fileContent = File.ReadAllText(args[2]);
-
-    var hash = WriteBlobObject(fileContent);
+    var hash = WriteBlobObject(args[2]);
 
     Console.Write(hash);
 }
@@ -75,19 +73,7 @@ else if (command == "ls-tree" && commandArg == "--name-only")
 else if (command == "write-tree")
 {
     var currentDirectory = Directory.GetCurrentDirectory();
-    var treeObjectBuilder = new StringBuilder();
-    var treeObjectBody = IterateDirectory(currentDirectory, treeObjectBuilder);
-
-    var treeObject = $"tree {treeObjectBody.Length}\0{treeObjectBody}";
-    
-    var treeObjectBytes = Encoding.UTF8.GetBytes(treeObject);
-
-    var hash = HashFromByteArray(treeObjectBytes);
-    
-    var treeObjectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
-
-    Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
-    File.WriteAllBytes(treeObjectPath, Compress(treeObjectBytes));
+    var hash = WriteTreeObject(currentDirectory);
 
     Console.WriteLine(hash);
 }
@@ -96,45 +82,52 @@ else
     throw new ArgumentException($"Unknown command {command}");
 }
 
-string IterateDirectory(string directory, StringBuilder treeObjectBody)
+string WriteTreeObject(string directory)
 {
     var directories = Directory.GetDirectories(directory).Where(x => !x.EndsWith(".git"));
-    foreach (var dir in directories)
-    {
-        var treeObjectRow = $"040000 {Path.GetFileName(dir)}\0{HashFromString(IterateDirectory(dir, treeObjectBody))}";
-        treeObjectBody.Append(treeObjectRow);
-    }
-
-    treeObjectBody.Append(WriteAllFiles(directory));
-    return treeObjectBody.ToString();
-}
-
-string WriteAllFiles(string directory)
-{
     var files = Directory.GetFiles(directory);
-    var treeBlobObjectBody = new StringBuilder();
-    foreach (var file in files)
+    var directoryAndFiles = directories.Concat(files).OrderBy(x => x);
+
+    var treeObjectBody = new StringBuilder();
+    foreach (var directoryAndFile in directoryAndFiles)
     {
-        var fileContent = File.ReadAllText(file);
-        var hash = WriteBlobObject(fileContent);
-        var treeObjectRow = $"100644 {Path.GetFileName(file)}\0{hash}";
-        treeBlobObjectBody.Append(treeObjectRow);
+        if (Directory.Exists(directoryAndFile))
+        {
+            var treeObjectRow = $"040000 {Path.GetFileName(directoryAndFile)}\0{WriteTreeObject(directoryAndFile)}";
+            treeObjectBody.Append(treeObjectRow);
+        }
+        else
+        {
+            var blobHash = WriteBlobObject(directoryAndFile);
+            var treeObjectRow = $"100644 {Path.GetFileName(directoryAndFile)}\0{blobHash}";
+            treeObjectBody.Append(treeObjectRow);
+        }
     }
 
-    return treeBlobObjectBody.ToString();
+    var treeObject = $"tree {treeObjectBody.Length}\0{treeObjectBody}";
+    var treeObjectBytes = Encoding.UTF8.GetBytes(treeObject);
+    var treeHash = Hash(treeObjectBytes);
+    var treeObjectPath = $".git/objects/{treeHash[..2]}/{treeHash[2..]}";
+
+    Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
+    File.WriteAllBytes(treeObjectPath, Compress(treeObjectBytes));
+
+    return treeHash;
 }
 
-string WriteBlobObject(string fileContent)
+
+string WriteBlobObject(string filePath)
 {
+    var fileContent = File.ReadAllText(filePath);
     var blobObject = $"blob {fileContent.Length}\0{fileContent}";
     var blobObjectBytes = Encoding.UTF8.GetBytes(blobObject);
 
-    var hash = HashFromByteArray(blobObjectBytes);
+    var hash = Hash(blobObjectBytes);
 
-    var objectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
+    var blobObjectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
 
-    Directory.CreateDirectory(Path.GetDirectoryName(objectPath)!);
-    File.WriteAllBytes(objectPath, Compress(blobObjectBytes));
+    Directory.CreateDirectory(Path.GetDirectoryName(blobObjectPath)!);
+    File.WriteAllBytes(blobObjectPath, Compress(blobObjectBytes));
 
     return hash;
 }
@@ -157,21 +150,9 @@ string DeCompress(byte[] data)
     return reader.ReadToEnd();
 }
 
-string HashFromByteArray(byte[] data)
+string Hash(byte[] data)
 {
     var hash = SHA1.HashData(data);
-    var sb = new StringBuilder(hash.Length * 2);
-    foreach (byte b in hash)
-    {
-        sb.Append(b.ToString("x2"));
-    }
-
-    return sb.ToString();
-}
-
-string HashFromString(string data)
-{
-    var hash = SHA1.HashData(Encoding.UTF8.GetBytes(data));
     var sb = new StringBuilder(hash.Length * 2);
     foreach (byte b in hash)
     {
