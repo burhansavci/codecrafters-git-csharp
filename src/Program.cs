@@ -166,5 +166,10 @@ string Hash(byte[] data)
 string HashWithoutHex(byte[] data)
 {
     var hash = SHA1.HashData(data);
-    return Encoding.UTF8.GetString(hash);
+    var sb = new StringBuilder(hash.Length);
+    foreach (byte b in hash)
+    {
+        sb.Append(b);
+    }
+    return sb.ToString();
 }
