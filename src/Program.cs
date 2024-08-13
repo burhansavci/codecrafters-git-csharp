@@ -93,7 +93,7 @@ else
     {
         if (Directory.Exists(directoryAndFile))
         {
-            var treeObjectRow = $"040000 {Path.GetFileName(directoryAndFile)}\0{WriteTreeObject(directoryAndFile).hashWithoutHex}";
+            var treeObjectRow = $"40000 {Path.GetFileName(directoryAndFile)}\0{WriteTreeObject(directoryAndFile).hashWithoutHex}";
             treeObjectBody.Append(treeObjectRow);
         }
         else
@@ -166,10 +166,5 @@ string Hash(byte[] data)
 string HashWithoutHex(byte[] data)
 {
     var hash = SHA1.HashData(data);
-    var sb = new StringBuilder(hash.Length);
-    foreach (byte b in hash)
-    {
-        sb.Append(b);
-    }
-    return sb.ToString();
+    return Encoding.UTF8.GetString(hash);
 }
