@@ -39,7 +39,7 @@ else if (command == "cat-file" && commandArg == "-p")
 }
 else if (command == "hash-object" && commandArg == "-w")
 {
-    var hash = WriteBlobObject(args[2]);
+    var (hash, _) = WriteBlobObject(args[2]);
 
     Console.Write(hash);
 }
@@ -98,8 +98,8 @@ string WriteTreeObject(string directory)
         }
         else
         {
-            var blobHash = WriteBlobObject(directoryAndFile);
-            var treeObjectRow = $"100644 {Path.GetFileName(directoryAndFile)}\0{blobHash}";
+            var (_, blobHashWithoutHex) = WriteBlobObject(directoryAndFile);
+            var treeObjectRow = $"100644 {Path.GetFileName(directoryAndFile)}\0{blobHashWithoutHex}";
             treeObjectBody.Append(treeObjectRow);
         }
     }
@@ -112,24 +112,25 @@ string WriteTreeObject(string directory)
     Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
     File.WriteAllBytes(treeObjectPath, Compress(treeObjectBytes));
 
-    return treeHash;
+    return HashWithoutHex(treeObjectBytes);
 }
 
 
-string WriteBlobObject(string filePath)
+(string hash, string hashWithoutHex) WriteBlobObject(string filePath)
 {
     var fileContent = File.ReadAllText(filePath);
     var blobObject = $"blob {fileContent.Length}\0{fileContent}";
     var blobObjectBytes = Encoding.UTF8.GetBytes(blobObject);
 
     var hash = Hash(blobObjectBytes);
+    var hashWithoutHex = HashWithoutHex(blobObjectBytes);
 
     var blobObjectPath = $".git/objects/{hash[..2]}/{hash[2..]}";
 
     Directory.CreateDirectory(Path.GetDirectoryName(blobObjectPath)!);
     File.WriteAllBytes(blobObjectPath, Compress(blobObjectBytes));
 
-    return hash;
+    return (hash, hashWithoutHex);
 }
 
 byte[] Compress(byte[] data)
@@ -160,4 +161,10 @@ string Hash(byte[] data)
     }
 
     return sb.ToString();
+}
+
+string HashWithoutHex(byte[] data)
+{
+    var hash = SHA1.HashData(data);
+    return Encoding.UTF8.GetString(hash);
 }
