@@ -73,7 +73,7 @@ else if (command == "ls-tree" && commandArg == "--name-only")
 else if (command == "write-tree")
 {
     var currentDirectory = Directory.GetCurrentDirectory();
-    var hash = WriteTreeObject(currentDirectory);
+    var (hash, _) = WriteTreeObject(currentDirectory);
 
     Console.WriteLine(hash);
 }
@@ -82,7 +82,7 @@ else
     throw new ArgumentException($"Unknown command {command}");
 }
 
-string WriteTreeObject(string directory)
+(string hash, string hashWithoutHex) WriteTreeObject(string directory)
 {
     var directories = Directory.GetDirectories(directory).Where(x => !x.EndsWith(".git"));
     var files = Directory.GetFiles(directory);
@@ -93,7 +93,7 @@ string WriteTreeObject(string directory)
     {
         if (Directory.Exists(directoryAndFile))
         {
-            var treeObjectRow = $"040000 {Path.GetFileName(directoryAndFile)}\0{WriteTreeObject(directoryAndFile)}";
+            var treeObjectRow = $"040000 {Path.GetFileName(directoryAndFile)}\0{WriteTreeObject(directoryAndFile).hashWithoutHex}";
             treeObjectBody.Append(treeObjectRow);
         }
         else
@@ -112,7 +112,7 @@ string WriteTreeObject(string directory)
     Directory.CreateDirectory(Path.GetDirectoryName(treeObjectPath)!);
     File.WriteAllBytes(treeObjectPath, Compress(treeObjectBytes));
 
-    return HashWithoutHex(treeObjectBytes);
+    return (treeHash, HashWithoutHex(treeObjectBytes));
 }
 
 
