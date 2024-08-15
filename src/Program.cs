@@ -36,10 +36,8 @@ else if (command == "ls-tree" && commandArg == "--name-only")
     var hash = args[2];
     var gitTreeObject = GitTreeObject.FromHashHexString(hash);
 
-    foreach (var name in gitTreeObject.Entries.Select(x => x.Name).OrderBy(x => x))
-    {
+    foreach (var name in gitTreeObject.Entries.Select(x => x.Name))
         Console.WriteLine(name);
-    }
 }
 else if (command == "write-tree")
 {

@@ -46,7 +46,7 @@ record GitTreeObject
 
         return new GitTreeObject
         {
-            Entries = entries
+            Entries = entries.OrderBy(x => x.Name).ToList()
         };
     }
 }
