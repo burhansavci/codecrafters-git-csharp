@@ -1,5 +1,8 @@
 using codecrafters_git.Git.Extensions;
 using codecrafters_git.Git.Objects;
+using codecrafters_git.Git.Objects.Blobs;
+using codecrafters_git.Git.Objects.Commits;
+using codecrafters_git.Git.Objects.Trees;
 
 if (args.Length < 1)
 {
@@ -46,6 +49,16 @@ else if (command == "write-tree")
 
     Console.WriteLine(gitTreeObject.HashHexString);
 }
+else if (command == "commit-tree")
+{
+    var treeHash = args[1];
+    var parentCommitHash = args[3];
+    var commitMessage = args[5];
+
+    var gitCommitObject = WriteGitCommitObject(treeHash, parentCommitHash, commitMessage);
+
+    Console.WriteLine(gitCommitObject.HashHexString);
+}
 else
 {
     throw new ArgumentException($"Unknown command {command}");
@@ -89,4 +102,14 @@ GitBlobObject WriteBlobObject(string filePath)
     File.WriteAllBytes(blobObject.Path, blobObject.Bytes.Compress());
 
     return blobObject;
+}
+
+GitCommitObject WriteGitCommitObject(string treeHash, string parentCommitHash, string commitMessage)
+{
+    var gitCommitObject = new GitCommitObject(treeHash, parentCommitHash, commitMessage);
+
+    Directory.CreateDirectory(Path.GetDirectoryName(gitCommitObject.Path)!);
+    File.WriteAllBytes(gitCommitObject.Path, gitCommitObject.Bytes.Compress());
+
+    return gitCommitObject;
 }

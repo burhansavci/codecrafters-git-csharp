@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using codecrafters_git.Git.Extensions;
 
-namespace codecrafters_git.Git.Objects;
+namespace codecrafters_git.Git.Objects.Trees;
 
 record GitTreeObject
 {

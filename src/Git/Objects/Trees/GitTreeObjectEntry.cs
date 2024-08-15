@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace codecrafters_git.Git.Objects;
+namespace codecrafters_git.Git.Objects.Trees;
 
 record GitTreeObjectEntry(string Mode, string Name, byte[] Hash)
 {

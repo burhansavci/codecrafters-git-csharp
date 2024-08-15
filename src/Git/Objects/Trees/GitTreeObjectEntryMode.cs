@@ -1,4 +1,4 @@
-namespace codecrafters_git.Git.Objects;
+namespace codecrafters_git.Git.Objects.Trees;
 
 public static class GitTreeObjectEntryMode
 {
