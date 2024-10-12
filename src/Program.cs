@@ -1,3 +1,5 @@
+using System.Net.Http.Headers;
+using System.Text;
 using codecrafters_git.Git.Extensions;
 using codecrafters_git.Git.Objects;
 using codecrafters_git.Git.Objects.Blobs;
@@ -58,6 +60,58 @@ else if (command == "commit-tree")
     var gitCommitObject = WriteGitCommitObject(treeHash, parentCommitHash, commitMessage);
 
     Console.WriteLine(gitCommitObject.HashHexString);
+}
+else if (command == "clone")
+{
+    var url = args[1];
+    var directory = args[2];
+
+    if (!Directory.Exists(directory))
+    {
+        Directory.CreateDirectory(directory);
+    }
+
+    var httpClient = new HttpClient();
+    httpClient.DefaultRequestHeaders.Add("git-protocol", "version=1");
+
+    var serviceName = "git-upload-pack";
+    var discoveryUrl = $"{url}/info/refs?service={serviceName}";
+    Console.WriteLine(url);
+    var discoveryResponse = await httpClient.GetAsync(discoveryUrl);
+    var discoveryContent = await discoveryResponse.Content.ReadAsStringAsync();
+
+    Console.WriteLine(discoveryContent);
+    /**
+001e# service=git-upload-pack
+0000015523f0bc3b5c7c3108e41c448f01a3db31e7064bbb HEADmulti_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/github-d37f7b990c25
+003f23f0bc3b5c7c3108e41c448f01a3db31e7064bbb refs/heads/master
+0000
+      */
+    var mode = "0155";
+    var flush = "0000";
+    var head = discoveryContent.Split(serviceName)[1].Split("HEAD")[0].Trim();
+    var firstRefHash = head[(flush.Length + mode.Length)..];
+
+    var gitUploadPackUrl = $"{url}/{serviceName}";
+    var gitUploadPackRequest = new HttpRequestMessage(HttpMethod.Post, gitUploadPackUrl);
+
+    var content = $"0032want {firstRefHash}\n00000009done\n";
+
+    gitUploadPackRequest.Content = new StringContent(content, Encoding.ASCII, "application/x-git-upload-pack-request");
+    gitUploadPackRequest.Content.Headers.ContentLength = Encoding.ASCII.GetByteCount(content);
+
+    var gitUploadPackResponse = await httpClient.SendAsync(gitUploadPackRequest);
+
+    if (gitUploadPackResponse.IsSuccessStatusCode)
+    {
+        var gitUploadPackResponseContent = await gitUploadPackResponse.Content.ReadAsStringAsync();
+        Console.WriteLine($"Git Upload Pack Response ({gitUploadPackResponseContent.Length}):");
+        Console.WriteLine(gitUploadPackResponseContent);
+    }
+    else
+    {
+        Console.WriteLine($"Request failed with status code: {gitUploadPackResponse.StatusCode}");
+    }
 }
 else
 {
