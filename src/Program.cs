@@ -63,7 +63,7 @@ else if (command == "commit-tree")
 }
 else if (command == "clone")
 {
-    var url = args[1];
+    var repoUrl = args[1];
     var directory = args[2];
 
     if (!Directory.Exists(directory))
@@ -75,27 +75,13 @@ else if (command == "clone")
     httpClient.DefaultRequestHeaders.Add("git-protocol", "version=1");
 
     var serviceName = "git-upload-pack";
-    var discoveryUrl = $"{url}/info/refs?service={serviceName}";
-    Console.WriteLine(url);
-    var discoveryResponse = await httpClient.GetAsync(discoveryUrl);
-    var discoveryContent = await discoveryResponse.Content.ReadAsStringAsync();
 
-    Console.WriteLine(discoveryContent);
-    /**
-001e# service=git-upload-pack
-0000015523f0bc3b5c7c3108e41c448f01a3db31e7064bbb HEADmulti_ack thin-pack side-band side-band-64k ofs-delta shallow deepen-since deepen-not deepen-relative no-progress include-tag multi_ack_detailed allow-tip-sha1-in-want allow-reachable-sha1-in-want no-done symref=HEAD:refs/heads/master filter object-format=sha1 agent=git/github-d37f7b990c25
-003f23f0bc3b5c7c3108e41c448f01a3db31e7064bbb refs/heads/master
-0000
-      */
-    var mode = "0155";
-    var flush = "0000";
-    var head = discoveryContent.Split(serviceName)[1].Split("HEAD")[0].Trim();
-    var firstRefHash = head[(flush.Length + mode.Length)..];
+    var referenceHash = await DiscoverReferenceHash(httpClient, repoUrl, serviceName);
 
-    var gitUploadPackUrl = $"{url}/{serviceName}";
+    var gitUploadPackUrl = $"{repoUrl}/{serviceName}";
     var gitUploadPackRequest = new HttpRequestMessage(HttpMethod.Post, gitUploadPackUrl);
 
-    var content = $"0032want {firstRefHash}\n00000009done\n";
+    var content = $"0032want {referenceHash}\n00000009done\n";
 
     gitUploadPackRequest.Content = new StringContent(content, Encoding.ASCII, "application/x-git-upload-pack-request");
     gitUploadPackRequest.Content.Headers.ContentLength = Encoding.ASCII.GetByteCount(content);
@@ -104,9 +90,12 @@ else if (command == "clone")
 
     if (gitUploadPackResponse.IsSuccessStatusCode)
     {
-        var gitUploadPackResponseContent = await gitUploadPackResponse.Content.ReadAsStringAsync();
-        Console.WriteLine($"Git Upload Pack Response ({gitUploadPackResponseContent.Length}):");
-        Console.WriteLine(gitUploadPackResponseContent);
+        var pack = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
+
+        var head = pack[..8];
+        var signature = pack[8..12];
+        var version = pack[12..16];
+
     }
     else
     {
@@ -116,6 +105,28 @@ else if (command == "clone")
 else
 {
     throw new ArgumentException($"Unknown command {command}");
+}
+
+async Task<string> DiscoverReferenceHash(HttpClient httpClient, string repoUrl, string serviceName)
+{
+    var discoveryUrl = $"{repoUrl}/info/refs?service={serviceName}";
+
+    var discoveryResponse = await httpClient.GetAsync(discoveryUrl);
+    var discoveryContent = await discoveryResponse.Content.ReadAsStringAsync();
+
+    /*
+     sample reference discovery response:
+001e# service=git-upload-pack
+{0000}{0155}23f0bc3b5c7c3108e41c448f01a3db31e7064bbb HEAD{features}
+{003f}23f0bc3b5c7c3108e41c448f01a3db31e7064bbb refs/heads/master
+0000
+  */
+
+    const string mode = "0155";
+    const string flush = "0000";
+
+    var head = discoveryContent.Split(serviceName)[1].Split("HEAD")[0].Trim();
+    return head[(flush.Length + mode.Length)..];
 }
 
 GitTreeObject WriteTreeObject(string directory)
