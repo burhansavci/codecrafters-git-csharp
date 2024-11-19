@@ -1,7 +1,6 @@
-using System.Net.Http.Headers;
+using System.Buffers.Binary;
 using System.Text;
 using codecrafters_git.Git.Extensions;
-using codecrafters_git.Git.Objects;
 using codecrafters_git.Git.Objects.Blobs;
 using codecrafters_git.Git.Objects.Commits;
 using codecrafters_git.Git.Objects.Trees;
@@ -17,10 +16,7 @@ string? commandArg = args.Length > 1 ? args[1] : null;
 
 if (command == "init")
 {
-    Directory.CreateDirectory(".git");
-    Directory.CreateDirectory(".git/objects");
-    Directory.CreateDirectory(".git/refs");
-    File.WriteAllText(".git/HEAD", "ref: refs/heads/main\n");
+    InitializeGitDirectory(Directory.GetCurrentDirectory());
     Console.WriteLine("Initialized git directory");
 }
 else if (command == "cat-file" && commandArg == "-p")
@@ -71,8 +67,9 @@ else if (command == "clone")
         Directory.CreateDirectory(directory);
     }
 
+    InitializeGitDirectory(directory);
+    
     var httpClient = new HttpClient();
-    httpClient.DefaultRequestHeaders.Add("git-protocol", "version=1");
 
     var serviceName = "git-upload-pack";
 
@@ -92,10 +89,10 @@ else if (command == "clone")
     {
         var pack = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
 
-        var head = pack[..8];
-        var signature = pack[8..12];
-        var version = pack[12..16];
-
+        string head = Encoding.ASCII.GetString(pack[..8]);
+        string signature = Encoding.ASCII.GetString(pack[8..12]);
+        int version = BinaryPrimitives.ReadInt32BigEndian(pack[12..16]);
+        int objectCount = BinaryPrimitives.ReadInt32BigEndian(pack[16..20]);
     }
     else
     {
@@ -177,4 +174,13 @@ GitCommitObject WriteGitCommitObject(string treeHash, string parentCommitHash, s
     File.WriteAllBytes(gitCommitObject.Path, gitCommitObject.Bytes.Compress());
 
     return gitCommitObject;
+}
+
+void InitializeGitDirectory(string directoryPath)
+{
+    Directory.CreateDirectory(Path.Combine(directoryPath, ".git"));
+    Directory.CreateDirectory(Path.Combine(directoryPath, ".git", "objects"));
+    Directory.CreateDirectory(Path.Combine(directoryPath, ".git", "refs"));
+    File.WriteAllText(Path.Combine(directoryPath, ".git", "HEAD"), "ref: refs/heads/main\n");
+    Console.WriteLine("Initialized git directory");
 }
