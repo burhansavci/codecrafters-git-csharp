@@ -1,9 +1,9 @@
-using System.Buffers.Binary;
 using System.Text;
 using codecrafters_git.Git.Extensions;
 using codecrafters_git.Git.Objects.Blobs;
 using codecrafters_git.Git.Objects.Commits;
 using codecrafters_git.Git.Objects.Trees;
+using codecrafters_git.Git.Packfiles;
 
 if (args.Length < 1)
 {
@@ -68,7 +68,7 @@ else if (command == "clone")
     }
 
     InitializeGitDirectory(directory);
-    
+
     var httpClient = new HttpClient();
 
     var serviceName = "git-upload-pack";
@@ -85,19 +85,16 @@ else if (command == "clone")
 
     var gitUploadPackResponse = await httpClient.SendAsync(gitUploadPackRequest);
 
-    if (gitUploadPackResponse.IsSuccessStatusCode)
-    {
-        var pack = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
-
-        string head = Encoding.ASCII.GetString(pack[..8]);
-        string signature = Encoding.ASCII.GetString(pack[8..12]);
-        int version = BinaryPrimitives.ReadInt32BigEndian(pack[12..16]);
-        int objectCount = BinaryPrimitives.ReadInt32BigEndian(pack[16..20]);
-    }
-    else
-    {
+    if (!gitUploadPackResponse.IsSuccessStatusCode)
         Console.WriteLine($"Request failed with status code: {gitUploadPackResponse.StatusCode}");
-    }
+
+    var packBytes = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
+
+    var gitPackfile = new Packfile(packBytes);
+
+    var contentStr = gitPackfile.Decompress();
+
+    Console.WriteLine(contentStr);
 }
 else
 {
@@ -182,5 +179,4 @@ void InitializeGitDirectory(string directoryPath)
     Directory.CreateDirectory(Path.Combine(directoryPath, ".git", "objects"));
     Directory.CreateDirectory(Path.Combine(directoryPath, ".git", "refs"));
     File.WriteAllText(Path.Combine(directoryPath, ".git", "HEAD"), "ref: refs/heads/main\n");
-    Console.WriteLine("Initialized git directory");
 }
