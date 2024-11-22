@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Text;
-using codecrafters_git.Git.Extensions;
 
 namespace codecrafters_git.Git.Packfiles;
 
@@ -42,20 +42,44 @@ public class Packfile
 
     public byte[] ContentBytes { get; }
 
-    public string Decompress()
+    public List<(ObjectType objectType, int size, string content)> Decompress()
     {
+        List<(ObjectType objectType, int size, string content)> objects = [];
+
         using MemoryStream packFileReader = new(ContentBytes);
 
-        var (objectType, size) = ReadTypeAndSize(packFileReader);
-        
-        using var packFileContentReader = new MemoryStream();
-        packFileReader.CopyTo(packFileContentReader);
+        for (int i = 0; i < ObjectCount;)
+        {
+            var (objectType, size) = ReadTypeAndSize(packFileReader);
 
-        var decompressedObject = packFileContentReader.ToArray().DeCompress();
+            if (objectType is ObjectType.OfsDelta or ObjectType.RefDelta)
+            {
+                //TODO: Handle OfsDelta and RefDelta
+                break;
+            }
 
-        string contentStr = Encoding.ASCII.GetString(decompressedObject);
-        
-        return contentStr;
+            // Save the packFileReader position before starting to read the git object
+            long packFileReaderBeforeReadPosition = packFileReader.Position;
+
+            List<byte> decompressedObject = new(size);
+
+            using (var decoder = new ZLibStream(packFileReader, CompressionMode.Decompress, leaveOpen: true))
+            {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = decoder.Read(buffer, 0, buffer.Length)) != 0)
+                    decompressedObject.AddRange(buffer.AsSpan(0, bytesRead));
+
+                long totalBytesRead = packFileReader.Position - packFileReaderBeforeReadPosition;
+
+                // Adjust the packFileReader position for the next git object
+                packFileReader.Seek(packFileReaderBeforeReadPosition + totalBytesRead, SeekOrigin.Begin);
+            }
+
+            objects.Add((objectType, size, Encoding.ASCII.GetString(decompressedObject.ToArray())));
+        }
+
+        return objects;
     }
 
     private (ObjectType ObjectType, int Size) ReadTypeAndSize(Stream packFileReader)
@@ -74,7 +98,7 @@ public class Packfile
 
         return (objectType, size);
     }
-    
+
     // Read a "size encoding" variable-length integer.
     // (There's another slightly different variable-length format
     // called the "offset encoding".)

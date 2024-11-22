@@ -91,10 +91,13 @@ else if (command == "clone")
     var packBytes = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
 
     var gitPackfile = new Packfile(packBytes);
+    
+    var decompressedGitPackFile = gitPackfile.Decompress();
 
-    var contentStr = gitPackfile.Decompress();
-
-    Console.WriteLine(contentStr);
+    foreach (var (objectType, size, contentStr) in decompressedGitPackFile)
+    {
+        Console.WriteLine($"{objectType} {size} {contentStr}");
+    }
 }
 else
 {
