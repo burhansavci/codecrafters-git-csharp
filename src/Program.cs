@@ -91,7 +91,7 @@ else if (command == "clone")
     var packBytes = await gitUploadPackResponse.Content.ReadAsByteArrayAsync();
 
     var gitPackfile = new Packfile(packBytes);
-    
+
     var decompressedGitPackFile = gitPackfile.Decompress();
 
     foreach (var (objectType, size, contentStr) in decompressedGitPackFile)
@@ -168,7 +168,10 @@ GitBlobObject WriteBlobObject(string filePath)
 
 GitCommitObject WriteGitCommitObject(string treeHash, string parentCommitHash, string commitMessage)
 {
-    var gitCommitObject = new GitCommitObject(treeHash, parentCommitHash, commitMessage);
+    var gitCommitObjectAuthorEntry = new GitCommitObjectAuthorEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
+    var gitCommitObjectCommiterEntry = new GitCommitObjectComitterEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
+
+    var gitCommitObject = new GitCommitObject(treeHash, parentCommitHash, commitMessage, gitCommitObjectAuthorEntry, gitCommitObjectCommiterEntry);
 
     Directory.CreateDirectory(Path.GetDirectoryName(gitCommitObject.Path)!);
     File.WriteAllBytes(gitCommitObject.Path, gitCommitObject.Bytes.Compress());
