@@ -5,11 +5,16 @@ public record GitCommitObjectComitterEntry(string Name, string Email, DateTimeOf
     public static GitCommitObjectComitterEntry FromContent(string content)
     {
         var committerEntry = content.Split('\n')[3];
-        var committerEntryParts = committerEntry.Split(' ');
+        
+        const string committerEntryPrefix = "committer "; 
+        int startIndexOfEmail = committerEntry.IndexOf('<');
+        int endIndexOfEmail = committerEntry.IndexOf('>');
+        
+        var name = committerEntry.Substring(committerEntryPrefix.Length, startIndexOfEmail - committerEntryPrefix.Length).Trim();
+        var email = committerEntry.Substring(startIndexOfEmail + 1, endIndexOfEmail - startIndexOfEmail - 1);
+        var dateParts = committerEntry.Substring(endIndexOfEmail + 1, committerEntry.Length - endIndexOfEmail - 1).Trim().Split(' ');
 
-        var name = committerEntryParts[1].TrimEnd('<').TrimEnd('>').TrimEnd(' ');
-        var email = committerEntryParts[2].TrimEnd('<').TrimEnd('>').TrimEnd(' ');
-        var date = GetDate(committerEntryParts);
+        var date = GetDate(dateParts[0], dateParts[1]);
 
         return new GitCommitObjectComitterEntry(name, email, date);
     }
@@ -19,11 +24,8 @@ public record GitCommitObjectComitterEntry(string Name, string Email, DateTimeOf
 
     public override string ToString() => $"committer {Name} <{Email}> {DateInSeconds} {DateTimeZone}";
 
-    private static DateTimeOffset GetDate(string[] entryParts)
+    private static DateTimeOffset GetDate(string dateInSeconds, string dateTimeZone)
     {
-        var dateInSeconds = entryParts[3];
-        var dateTimeZone = entryParts[4];
-
         var hours = int.Parse(dateTimeZone[..3]);
         var minutes = int.Parse(dateTimeZone.Substring(3, 2));
         var offset = new TimeSpan(hours, minutes, 0);
