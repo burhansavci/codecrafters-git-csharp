@@ -6,6 +6,36 @@ namespace codecrafters_git.Git.Objects.Trees;
 
 record GitTreeObject
 {
+    public GitTreeObject()
+    {
+    }
+
+    private GitTreeObject(byte[] bytes)
+    {
+        var headerNullIndex = Array.IndexOf(bytes, (byte)0);
+        //Skip: tree <size>\0
+        var hashContent = bytes[(headerNullIndex + 1)..];
+
+        var entries = new List<GitTreeObjectEntry>();
+        var currentIndex = 0;
+
+        // Parse each: <mode> <name>\0<20_byte_sha>
+        while (currentIndex < hashContent.Length)
+        {
+            var spaceIndex = Array.IndexOf(hashContent, (byte)' ', currentIndex);
+            var nullIndex = Array.IndexOf(hashContent, (byte)0, spaceIndex);
+            var mode = Encoding.ASCII.GetString(hashContent[currentIndex..spaceIndex]);
+            var name = Encoding.ASCII.GetString(hashContent[(spaceIndex + 1)..nullIndex]);
+            var hash = hashContent[(nullIndex + 1)..(nullIndex + 1 + 20)];
+
+            entries.Add(new GitTreeObjectEntry(mode, name, hash));
+            currentIndex = nullIndex + 1 + 20;
+        }
+
+        Entries = entries.OrderBy(x => x.Name).ToList();
+    }
+
+
     public string Header => $"tree {Body.Length}\0";
     public byte[] Body => Entries.Select(x => x.Bytes).Aggregate((x, y) => x.Concat(y).ToArray());
     public byte[] Bytes => Encoding.ASCII.GetBytes(Header).Concat(Body).ToArray();
@@ -13,6 +43,8 @@ record GitTreeObject
     public string HashHexString => Convert.ToHexString(Hash).ToLower();
     public string Path => $".git/objects/{HashHexString[..2]}/{HashHexString[2..]}";
     public List<GitTreeObjectEntry> Entries { get; private init; } = [];
+
+    public static GitTreeObject FromBytes(byte[] bytes) => new(bytes);
 
     public static GitTreeObject FromHashHexString(string hashHexString)
     {

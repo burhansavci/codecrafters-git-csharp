@@ -92,11 +92,36 @@ else if (command == "clone")
 
     var gitPackfile = new Packfile(packBytes);
 
-    var decompressedGitPackFile = gitPackfile.Decompress();
+    var gitPackObjects = gitPackfile.Decompress();
 
-    foreach (var (objectType, size, contentStr) in decompressedGitPackFile)
+    // handle this differently for deltified objects.
+    for (var index = 0; index < gitPackObjects.Count; index++)
     {
-        Console.WriteLine($"{objectType} {size} {contentStr}");
+        var gitObject = gitPackObjects[index];
+        Console.WriteLine(index);
+        if (gitObject.PackObjectType == PackObjectType.Blob)
+        {
+            var blobObject = GitBlobObject.FromContent(Encoding.ASCII.GetString(gitObject.InflatedData));
+
+            Directory.CreateDirectory(Path.GetDirectoryName(blobObject.Path)!);
+            File.WriteAllBytes(blobObject.Path, blobObject.Bytes.Compress());
+        }
+
+        if (gitObject.PackObjectType == PackObjectType.Commit)
+        {
+            var commitObject = GitCommitObject.FromContent(Encoding.ASCII.GetString(gitObject.InflatedData));
+
+            Directory.CreateDirectory(Path.GetDirectoryName(commitObject.Path)!);
+            File.WriteAllBytes(commitObject.Path, commitObject.Bytes.Compress());
+        }
+
+        if (gitObject.PackObjectType is PackObjectType.Tree)
+        {
+            var treeObject = GitTreeObject.FromBytes(gitObject.InflatedData);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(treeObject.Path)!);
+            File.WriteAllBytes(treeObject.Path, treeObject.Bytes.Compress());
+        }
     }
 }
 else

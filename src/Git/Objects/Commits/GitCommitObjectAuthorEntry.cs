@@ -2,15 +2,16 @@ namespace codecrafters_git.Git.Objects.Commits;
 
 public record GitCommitObjectAuthorEntry(string Name, string Email, DateTimeOffset Date)
 {
+    private const string AuthorEntryPrefix = "author "; 
+    
     public static GitCommitObjectAuthorEntry FromContent(string content)
     {
-        var authorEntry = content.Split('\n')[2];
+        var authorEntry = content.Split('\n').First(entry => entry.Trim().StartsWith(AuthorEntryPrefix));
         
-        const string authorEntryPrefix = "author "; 
         int startIndexOfEmail = authorEntry.IndexOf('<');
         int endIndexOfEmail = authorEntry.IndexOf('>');
 
-        var name = authorEntry.Substring(authorEntryPrefix.Length, startIndexOfEmail - authorEntryPrefix.Length).Trim();
+        var name = authorEntry.Substring(AuthorEntryPrefix.Length, startIndexOfEmail - AuthorEntryPrefix.Length).Trim();
         var email = authorEntry.Substring(startIndexOfEmail + 1, endIndexOfEmail - startIndexOfEmail - 1);
         var dateParts = authorEntry.Substring(endIndexOfEmail + 1, authorEntry.Length - endIndexOfEmail - 1).Trim().Split(' '); 
         

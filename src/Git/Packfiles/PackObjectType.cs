@@ -1,6 +1,6 @@
 namespace codecrafters_git.Git.Packfiles;
 
-public enum ObjectType
+public enum PackObjectType
 {
     Unknown = 0,
     Commit = 1,
