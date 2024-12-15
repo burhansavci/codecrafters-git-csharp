@@ -1,5 +1,6 @@
 using System.Text;
 using codecrafters_git.Git.Extensions;
+using codecrafters_git.Git.Objects;
 using codecrafters_git.Git.Objects.Blobs;
 using codecrafters_git.Git.Objects.Commits;
 using codecrafters_git.Git.Objects.Trees;
@@ -69,6 +70,8 @@ else if (command == "clone")
 
     InitializeGitDirectory(directory);
 
+    Directory.SetCurrentDirectory(directory);
+
     var httpClient = new HttpClient();
 
     var serviceName = "git-upload-pack";
@@ -94,35 +97,44 @@ else if (command == "clone")
 
     var gitPackObjects = gitPackfile.Decompress();
 
-    // handle this differently for deltified objects.
-    for (var index = 0; index < gitPackObjects.Count; index++)
+    foreach (PackObject packObject in gitPackObjects.Where(x => x is UnDeltifiedPackObject))
     {
-        var gitObject = gitPackObjects[index];
-        Console.WriteLine(index);
-        if (gitObject.PackObjectType == PackObjectType.Blob)
-        {
-            var blobObject = GitBlobObject.FromContent(Encoding.ASCII.GetString(gitObject.InflatedData));
-
-            Directory.CreateDirectory(Path.GetDirectoryName(blobObject.Path)!);
-            File.WriteAllBytes(blobObject.Path, blobObject.Bytes.Compress());
-        }
-
-        if (gitObject.PackObjectType == PackObjectType.Commit)
-        {
-            var commitObject = GitCommitObject.FromContent(Encoding.ASCII.GetString(gitObject.InflatedData));
-
-            Directory.CreateDirectory(Path.GetDirectoryName(commitObject.Path)!);
-            File.WriteAllBytes(commitObject.Path, commitObject.Bytes.Compress());
-        }
-
-        if (gitObject.PackObjectType is PackObjectType.Tree)
-        {
-            var treeObject = GitTreeObject.FromBytes(gitObject.InflatedData);
-
-            Directory.CreateDirectory(Path.GetDirectoryName(treeObject.Path)!);
-            File.WriteAllBytes(treeObject.Path, treeObject.Bytes.Compress());
-        }
+        var (objectType, bytes) = (UnDeltifiedPackObject)packObject;
+        
+        GitObject gitObject = new GitObject(objectType, bytes);
+        gitObject.Write();
     }
+
+    foreach (PackObject packObject in gitPackObjects.Where(x => x is DeltifiedPackObject))
+    {
+        var (baseHash, size, deltaInstructions) = (DeltifiedPackObject)packObject;
+
+        var (baseType, bytes) = GitObject.FromHashHexString(baseHash);
+
+        var data = new byte[size];
+        using MemoryStream memoryStream = new(data);
+
+        foreach (var instruction in deltaInstructions)
+        {
+            if (instruction is CopyDeltaInstruction copy)
+            {
+                memoryStream.Write(bytes, copy.Offset, copy.Size);
+            }
+            else if (instruction is InsertDeltaInstruction insert)
+            {
+                memoryStream.Write(insert.Data);
+            }
+            else
+            {
+                throw new NotSupportedException($"Not supported instruction: {instruction}");
+            }
+        }
+
+        GitObject gitObject = new GitObject(baseType, data);
+        gitObject.Write();
+    }
+
+    // TODO: fix this: open /tmp/worktree1159519103/test_dir/scooby/dooby/doo: no such file or directory 
 }
 else
 {
