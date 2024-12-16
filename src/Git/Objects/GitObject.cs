@@ -4,7 +4,7 @@ using codecrafters_git.Git.Extensions;
 
 namespace codecrafters_git.Git.Objects;
 
-public record GitObject(ObjectType Type, byte[] Bytes)
+public record GitObject(ObjectType Type, byte[] ContentBytes)
 {
     private static readonly byte[] SpaceBytes = [(byte)' '];
     private static readonly byte[] NullBytes = [0];
@@ -30,7 +30,7 @@ public record GitObject(ObjectType Type, byte[] Bytes)
 
     public string Write()
     {
-        byte[] lengthInBytes = Encoding.ASCII.GetBytes(Bytes.Length.ToString());
+        byte[] lengthInBytes = Encoding.ASCII.GetBytes(ContentBytes.Length.ToString());
         byte[] typeInBytes = Encoding.ASCII.GetBytes(Type.ToString().ToLower());
 
         using MemoryStream memoryStream = new();
@@ -39,20 +39,20 @@ public record GitObject(ObjectType Type, byte[] Bytes)
         memoryStream.Write(SpaceBytes);
         memoryStream.Write(lengthInBytes);
         memoryStream.Write(NullBytes);
-        memoryStream.Write(Bytes);
+        memoryStream.Write(ContentBytes);
 
         return Write(memoryStream.ToArray());
     }
 
-    private static string Write(byte[] data)
+    private static string Write(byte[] bytes)
     {
-        byte[] hash = SHA1.HashData(data);
+        byte[] hash = SHA1.HashData(bytes);
         var hashHexString = Convert.ToHexString(hash).ToLower();
 
         var path = $".git/objects/{hashHexString[..2]}/{hashHexString[2..]}";
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllBytes(path, data.Compress());
+        File.WriteAllBytes(path, bytes.Compress());
 
         return hashHexString;
     }

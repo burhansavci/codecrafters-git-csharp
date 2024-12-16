@@ -100,7 +100,7 @@ else if (command == "clone")
     foreach (PackObject packObject in gitPackObjects.Where(x => x is UnDeltifiedPackObject))
     {
         var (objectType, bytes) = (UnDeltifiedPackObject)packObject;
-        
+
         GitObject gitObject = new GitObject(objectType, bytes);
         gitObject.Write();
     }
@@ -111,8 +111,8 @@ else if (command == "clone")
 
         var (baseType, bytes) = GitObject.FromHashHexString(baseHash);
 
-        var data = new byte[size];
-        using MemoryStream memoryStream = new(data);
+        var completeObjectData = new byte[size];
+        using MemoryStream memoryStream = new(completeObjectData);
 
         foreach (var instruction in deltaInstructions)
         {
@@ -130,15 +130,42 @@ else if (command == "clone")
             }
         }
 
-        GitObject gitObject = new GitObject(baseType, data);
+        GitObject gitObject = new GitObject(baseType, completeObjectData);
         gitObject.Write();
     }
 
-    // TODO: fix this: open /tmp/worktree1159519103/test_dir/scooby/dooby/doo: no such file or directory 
+    var referenceCommit = GitCommitObject.FromHashHexString(referenceHash);
+
+    var referenceTree = GitTreeObject.FromHashHexString(referenceCommit.TreeHashHexString);
+
+    Checkout(referenceTree, string.Empty);
 }
 else
 {
     throw new ArgumentException($"Unknown command {command}");
+}
+
+void Checkout(GitTreeObject tree, string root)
+{
+    foreach (var entry in tree.Entries)
+    {
+        switch (entry.Mode)
+        {
+            case GitTreeObjectEntryMode.RegularFile:
+                GitBlobObject blob = GitBlobObject.FromHashHexString(entry.HashHexString);
+                var path = Path.Combine(root, entry.Name);
+                File.WriteAllText(path, blob.Content);
+                break;
+            case GitTreeObjectEntryMode.Directory:
+                GitTreeObject subTree = GitTreeObject.FromHashHexString(entry.HashHexString);
+                var subRootPath = Path.Combine(root, entry.Name);
+
+                Directory.CreateDirectory(subRootPath);
+
+                Checkout(subTree, subRootPath);
+                break;
+        }
+    }
 }
 
 async Task<string> DiscoverReferenceHash(HttpClient httpClient, string repoUrl, string serviceName)
