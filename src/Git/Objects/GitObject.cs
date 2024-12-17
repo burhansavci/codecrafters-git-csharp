@@ -1,59 +1,88 @@
 using System.Security.Cryptography;
 using System.Text;
 using codecrafters_git.Git.Extensions;
+using codecrafters_git.Git.Objects.Blobs;
+using codecrafters_git.Git.Objects.Commits;
+using codecrafters_git.Git.Objects.Trees;
 
 namespace codecrafters_git.Git.Objects;
 
-public record GitObject(ObjectType Type, byte[] ContentBytes)
+public record GitObject
 {
-    private static readonly byte[] SpaceBytes = [(byte)' '];
-    private static readonly byte[] NullBytes = [0];
+    protected const byte SpaceByte = (byte)' ';
+    protected const byte NullByte = 0;
 
-    public static GitObject FromHashHexString(string hashHexString)
+    public GitObject(ObjectType type, byte[] contentBytes)
     {
+        ArgumentNullException.ThrowIfNull(contentBytes);
+
+        Type = type;
+        ContentBytes = contentBytes;
+        Header = $"{Type.ToString().ToLower()} {ContentBytes.Length}\0";
+        Bytes = Encoding.ASCII.GetBytes(Header).Concat(ContentBytes).ToArray();
+        Hash = SHA1.HashData(Bytes);
+        HashHexString = Convert.ToHexString(Hash).ToLower();
+        Path = $".git/objects/{HashHexString[..2]}/{HashHexString[2..]}";
+    }
+
+    public ObjectType Type { get; }
+    public byte[] ContentBytes { get; }
+    public string Header { get; }
+    public byte[] Bytes { get; }
+    public byte[] Hash { get; }
+    public string HashHexString { get; }
+    public string Path { get; }
+
+    public static T FromHashHexString<T>(string hashHexString) where T : GitObject
+    {
+        ArgumentException.ThrowIfNullOrEmpty(hashHexString);
+
         var path = $".git/objects/{hashHexString[..2]}/{hashHexString[2..]}";
 
         if (!File.Exists(path))
-            throw new ArgumentException($"Object {hashHexString} not found.");
+            throw new FileNotFoundException($"Git object {hashHexString} not found at {path}");
 
         var compressed = File.ReadAllBytes(path);
         var decompressed = compressed.DeCompress();
 
-        var headerSpaceIndex = Array.IndexOf(decompressed, SpaceBytes[0]);
-        var headerNullIndex = Array.IndexOf(decompressed, NullBytes[0]);
+        var (type, contentBytes) = ParseObjectData(decompressed);
 
-        var typeInString = Encoding.ASCII.GetString(decompressed[..headerSpaceIndex]);
-        var type = typeInString.ToObjectType();
+        GitObject gitObject = type switch
+        {
+            ObjectType.Blob => new GitBlobObject(contentBytes),
+            ObjectType.Tree => new GitTreeObject(contentBytes),
+            ObjectType.Commit => new GitCommitObject(contentBytes),
+            ObjectType.Tag => throw new NotSupportedException("Tags are not supported yet."),
+            _ => throw new ArgumentException($"Unsupported object type: {type}")
+        };
 
-        return new GitObject(type, decompressed[(headerNullIndex + 1)..]);
+        if (gitObject is not T result)
+            throw new ArgumentException($"Object {hashHexString} is not of type {typeof(T).Name}");
+
+        return result;
     }
 
-    public string Write()
+    public void Write()
     {
-        byte[] lengthInBytes = Encoding.ASCII.GetBytes(ContentBytes.Length.ToString());
-        byte[] typeInBytes = Encoding.ASCII.GetBytes(Type.ToString().ToLower());
-
-        using MemoryStream memoryStream = new();
-
-        memoryStream.Write(typeInBytes);
-        memoryStream.Write(SpaceBytes);
-        memoryStream.Write(lengthInBytes);
-        memoryStream.Write(NullBytes);
-        memoryStream.Write(ContentBytes);
-
-        return Write(memoryStream.ToArray());
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
+        File.WriteAllBytes(Path, Bytes.Compress());
     }
 
-    private static string Write(byte[] bytes)
+    private static (ObjectType type, byte[] contentBytes) ParseObjectData(byte[] decompressed)
     {
-        byte[] hash = SHA1.HashData(bytes);
-        var hashHexString = Convert.ToHexString(hash).ToLower();
+        //<type> <size>\0<contentBytes>
+        var headerSpaceIndex = Array.IndexOf(decompressed, SpaceByte);
+        var headerNullIndex = Array.IndexOf(decompressed, NullByte);
 
-        var path = $".git/objects/{hashHexString[..2]}/{hashHexString[2..]}";
+        if (headerSpaceIndex == -1 || headerNullIndex == -1)
+        {
+            throw new FormatException("Invalid git object format");
+        }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllBytes(path, bytes.Compress());
+        var typeString = Encoding.ASCII.GetString(decompressed[..headerSpaceIndex]);
+        var type = typeString.ToObjectType();
+        var contentBytes = decompressed[(headerNullIndex + 1)..];
 
-        return hashHexString;
+        return (type, contentBytes);
     }
 }

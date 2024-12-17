@@ -1,5 +1,4 @@
 using System.Text;
-using codecrafters_git.Git.Extensions;
 using codecrafters_git.Git.Objects;
 using codecrafters_git.Git.Objects.Blobs;
 using codecrafters_git.Git.Objects.Commits;
@@ -23,20 +22,18 @@ if (command == "init")
 else if (command == "cat-file" && commandArg == "-p")
 {
     var hash = args[2];
-    var gitBlobObject = GitBlobObject.FromHashHexString(hash);
-
-    Console.Write(gitBlobObject.Content);
+    var gitObject = GitObject.FromHashHexString<GitBlobObject>(hash);
+    Console.Write(Encoding.ASCII.GetString(gitObject.ContentBytes));
 }
 else if (command == "hash-object" && commandArg == "-w")
 {
     var gitBlobObject = WriteBlobObject(args[2]);
-
     Console.Write(gitBlobObject.HashHexString);
 }
 else if (command == "ls-tree" && commandArg == "--name-only")
 {
     var hash = args[2];
-    var gitTreeObject = GitTreeObject.FromHashHexString(hash);
+    var gitTreeObject = GitObject.FromHashHexString<GitTreeObject>(hash);
 
     foreach (var name in gitTreeObject.Entries.Select(x => x.Name))
         Console.WriteLine(name);
@@ -54,7 +51,12 @@ else if (command == "commit-tree")
     var parentCommitHash = args[3];
     var commitMessage = args[5];
 
-    var gitCommitObject = WriteGitCommitObject(treeHash, parentCommitHash, commitMessage);
+    var gitCommitObjectAuthorEntry = new GitCommitObjectAuthorEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
+    var gitCommitObjectCommiterEntry = new GitCommitObjectComitterEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
+
+    var gitCommitObject = new GitCommitObject(treeHash, parentCommitHash, commitMessage, gitCommitObjectAuthorEntry, gitCommitObjectCommiterEntry);
+
+    gitCommitObject.Write();
 
     Console.WriteLine(gitCommitObject.HashHexString);
 }
@@ -101,7 +103,7 @@ else if (command == "clone")
     {
         var (objectType, bytes) = (UnDeltifiedPackObject)packObject;
 
-        GitObject gitObject = new GitObject(objectType, bytes);
+        GitObject gitObject = new(objectType, bytes);
         gitObject.Write();
     }
 
@@ -109,7 +111,7 @@ else if (command == "clone")
     {
         var (baseHash, size, deltaInstructions) = (DeltifiedPackObject)packObject;
 
-        var (baseType, bytes) = GitObject.FromHashHexString(baseHash);
+        var baseGitObject = GitObject.FromHashHexString<GitObject>(baseHash);
 
         var completeObjectData = new byte[size];
         using MemoryStream memoryStream = new(completeObjectData);
@@ -118,7 +120,7 @@ else if (command == "clone")
         {
             if (instruction is CopyDeltaInstruction copy)
             {
-                memoryStream.Write(bytes, copy.Offset, copy.Size);
+                memoryStream.Write(baseGitObject.ContentBytes, copy.Offset, copy.Size);
             }
             else if (instruction is InsertDeltaInstruction insert)
             {
@@ -130,13 +132,12 @@ else if (command == "clone")
             }
         }
 
-        GitObject gitObject = new GitObject(baseType, completeObjectData);
+        GitObject gitObject = new(baseGitObject.Type, completeObjectData);
         gitObject.Write();
     }
 
-    var referenceCommit = GitCommitObject.FromHashHexString(referenceHash);
-
-    var referenceTree = GitTreeObject.FromHashHexString(referenceCommit.TreeHashHexString);
+    var referenceCommit = GitObject.FromHashHexString<GitCommitObject>(referenceHash);
+    var referenceTree = GitObject.FromHashHexString<GitTreeObject>(referenceCommit.TreeHashHexString);
 
     Checkout(referenceTree, string.Empty);
 }
@@ -152,12 +153,12 @@ void Checkout(GitTreeObject tree, string root)
         switch (entry.Mode)
         {
             case GitTreeObjectEntryMode.RegularFile:
-                GitBlobObject blob = GitBlobObject.FromHashHexString(entry.HashHexString);
+                var blob = GitObject.FromHashHexString<GitBlobObject>(entry.HashHexString);
                 var path = Path.Combine(root, entry.Name);
-                File.WriteAllText(path, blob.Content);
+                File.WriteAllBytes(path, blob.ContentBytes);
                 break;
             case GitTreeObjectEntryMode.Directory:
-                GitTreeObject subTree = GitTreeObject.FromHashHexString(entry.HashHexString);
+                var subTree = GitObject.FromHashHexString<GitTreeObject>(entry.HashHexString);
                 var subRootPath = Path.Combine(root, entry.Name);
 
                 Directory.CreateDirectory(subRootPath);
@@ -196,51 +197,36 @@ GitTreeObject WriteTreeObject(string directory)
     var files = Directory.GetFiles(directory);
     var directoryAndFiles = directories.Concat(files).OrderBy(x => x);
 
-    var treeObject = new GitTreeObject();
+    var treeObjectEntries = new List<GitTreeObjectEntry>();
     foreach (var directoryAndFile in directoryAndFiles)
     {
         if (Directory.Exists(directoryAndFile))
         {
             var gitTreeObject = WriteTreeObject(directoryAndFile);
             var gitTreeObjectEntry = new GitTreeObjectEntry(GitTreeObjectEntryMode.Directory, Path.GetFileName(directoryAndFile), gitTreeObject.Hash);
-            treeObject.Entries.Add(gitTreeObjectEntry);
+            treeObjectEntries.Add(gitTreeObjectEntry);
         }
         else
         {
             var gitBlobObject = WriteBlobObject(directoryAndFile);
             var gitObjectTreeEntry = new GitTreeObjectEntry(GitTreeObjectEntryMode.RegularFile, Path.GetFileName(directoryAndFile), gitBlobObject.Hash);
-            treeObject.Entries.Add(gitObjectTreeEntry);
+            treeObjectEntries.Add(gitObjectTreeEntry);
         }
     }
 
-    Directory.CreateDirectory(Path.GetDirectoryName(treeObject.Path)!);
-    File.WriteAllBytes(treeObject.Path, treeObject.Bytes.Compress());
+    var treeObject = new GitTreeObject(treeObjectEntries);
+    treeObject.Write();
 
     return treeObject;
 }
 
 GitBlobObject WriteBlobObject(string filePath)
 {
-    var fileContent = File.ReadAllText(filePath);
-    var blobObject = GitBlobObject.FromContent(fileContent);
-
-    Directory.CreateDirectory(Path.GetDirectoryName(blobObject.Path)!);
-    File.WriteAllBytes(blobObject.Path, blobObject.Bytes.Compress());
+    var fileContent = File.ReadAllBytes(filePath);
+    var blobObject = new GitBlobObject(fileContent);
+    blobObject.Write();
 
     return blobObject;
-}
-
-GitCommitObject WriteGitCommitObject(string treeHash, string parentCommitHash, string commitMessage)
-{
-    var gitCommitObjectAuthorEntry = new GitCommitObjectAuthorEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
-    var gitCommitObjectCommiterEntry = new GitCommitObjectComitterEntry("burhansavci", "burhansavci@gmail.com", DateTimeOffset.UtcNow);
-
-    var gitCommitObject = new GitCommitObject(treeHash, parentCommitHash, commitMessage, gitCommitObjectAuthorEntry, gitCommitObjectCommiterEntry);
-
-    Directory.CreateDirectory(Path.GetDirectoryName(gitCommitObject.Path)!);
-    File.WriteAllBytes(gitCommitObject.Path, gitCommitObject.Bytes.Compress());
-
-    return gitCommitObject;
 }
 
 void InitializeGitDirectory(string directoryPath)
